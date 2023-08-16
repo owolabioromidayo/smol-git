@@ -15,8 +15,11 @@ use clap::{arg, Command};
 // mod index;
 // use index::{GitIndex, GitIndexEntry};
 
-mod objects;
+pub mod objects;
+pub mod index;
+pub mod staging;
 use objects::{hash_object, cat_file};
+
 
 fn cli() -> Command {
     Command::new("sgit")
@@ -81,7 +84,7 @@ fn cli() -> Command {
                 .arg_required_else_help(true),
         )
 
-}
+ }
 
 fn push_args() -> Vec<clap::Arg> {
     vec![arg!(-m --message <MESSAGE>)]

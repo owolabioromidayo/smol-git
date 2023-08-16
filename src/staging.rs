@@ -1,5 +1,5 @@
-mod index;
-use index::{GitIndex, GitIndexEntry};
+use std::{fs::{self, File}, io::Error};
+use crate::index::{GitIndex, GitIndexEntry};
 
 
 //impl add remove and status functions here
@@ -19,11 +19,29 @@ pub fn rm( ){
 
 //git index does not contain untracked files. but we need to do that
 //walk through files, check if they are staged, print seperately from those not staged
-pub fn status() {
+pub fn status(index: GitIndex) -> Result<(), Error> {
+    //load head file as an index
+
+    let mut reader = File::open("sgit/HEAD")?;
+    let head_index = GitIndex::deserialize(&mut reader)?;
+
+    //compare hashes and filenames in head index. different hashes for filename means changes
+    //hashmap key should be fname then
+
+    // the index does not contain the head. diff is easier then
+
+    //laod working dir as index and compare with staging/index
+    
     println!("Changes to be committed:");
-    for entry in &self.entries {
-        println!("    {} {}", entry.status, entry.filename);
-    }
+    // for entry in index.entries {
+    //     println!("    {} {}", entry.status, entry.filename);
+    // }
+
+    println!("Changes not staged for commit:");
+
+    println!("Untracked files:");
+
+    Ok(())
 }
 
 pub fn commit(){ 
@@ -41,6 +59,10 @@ pub fn commit(){
         //get the pgp signature (optional)
 
         //create a commit object and print its sha
+}
+
+pub fn ls_files(){
+
 }
 
 

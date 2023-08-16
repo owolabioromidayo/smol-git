@@ -1,10 +1,5 @@
-use std::fs::File;
-use std::io::{self, Write, Read};
-use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+use std::io::{self, Write, Read, Error};
 use std::collections::HashMap;
-
-//should we make a simpler index? for status purposes?
-
 
 pub struct GitIndexEntry {
     ctime_s: u32,
@@ -13,11 +8,11 @@ pub struct GitIndexEntry {
     mtime_s: u32,
     dev: u32,
     ino: u32,
-    mode: u32,
+    mode: u32, //what size is this really? 2 bytes?
     uid: u32,
     gid: u32,
     fsize: u32,
-    // sha1: [u8; 20],
+    sha1: [u8; 20],
     flags: u16,
     name: String,
 }
@@ -28,38 +23,71 @@ pub struct GitIndex{
 
 impl GitIndexEntry {
     pub fn serialize(&self, writer: &mut impl Write) -> io::Result<()> {
-        writer.write_u32::<BigEndian>(self.ctime_s)?;
-        writer.write_u32::<BigEndian>(self.ctime_n)?;
-        writer.write_u32::<BigEndian>(self.mtime_s)?;
-        writer.write_u32::<BigEndian>(self.mtime_n)?;
-        writer.write_u32::<BigEndian>(self.dev)?;
-        writer.write_u32::<BigEndian>(self.ino)?;
-        writer.write_u32::<BigEndian>(self.mode)?;
-        writer.write_u32::<BigEndian>(self.uid)?;
-        writer.write_u32::<BigEndian>(self.gid)?;
-        writer.write_u32::<BigEndian>(self.fsize)?;
-        // writer.write_all(&self.sha1)?;
-        writer.write_u16::<BigEndian>(self.flags)?;
-        writer.write_u16::<BigEndian>(self.name.len() as u16)?;
+        writer.write_all(&self.ctime_s.to_be_bytes());
+        writer.write_all(&self.ctime_n.to_be_bytes());
+        writer.write_all(&self.mtime_s.to_be_bytes());
+        writer.write_all(&self.mtime_n.to_be_bytes());
+        writer.write_all(&self.dev.to_be_bytes());
+        writer.write_all(&self.ino.to_be_bytes());
+        writer.write_all(&self.mode.to_be_bytes());
+        writer.write_all(&self.uid.to_be_bytes());
+        writer.write_all(&self.gid.to_be_bytes());
+        writer.write_all(&self.fsize.to_be_bytes());
+        writer.write_all(&self.sha1);
+        writer.write_all(&self.flags.to_be_bytes());
+        writer.write_all(&( (self.name.len() as u16).to_be_bytes()));
         writer.write_all(self.name.as_bytes())?;
         Ok(())
     }
 
     pub fn deserialize(reader: &mut impl Read) -> io::Result<Self> {
-        let ctime_s = reader.read_u32::<BigEndian>()?;
-        let ctime_n = reader.read_u32::<BigEndian>()?;
-        let mtime_s = reader.read_u32::<BigEndian>()?;
-        let mtime_n = reader.read_u32::<BigEndian>()?;
-        let dev = reader.read_u32::<BigEndian>()?;
-        let ino = reader.read_u32::<BigEndian>()?;
-        let mode = reader.read_u32::<BigEndian>()?;
-        let uid = reader.read_u32::<BigEndian>()?;
-        let gid = reader.read_u32::<BigEndian>()?;
-        let fsize = reader.read_u32::<BigEndian>()?;
+
+        // read 12 byte header (are we doing this)
+        let mut header = [0u8, 12];
+        reader.read_exact(&mut header)?;
+
+        let mut buffer = [0u8; 4];
+        reader.read_exact(&mut buffer)?;
+
+        let ctime_s = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let ctime_n = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let mtime_s = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let mtime_n = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let dev = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let ino = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let mode = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let uid = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let gid = u32::from_be_bytes(buffer);
+        reader.read_exact(&mut buffer)?;
+
+        let fsize = u32::from_be_bytes(buffer);
+
         let mut sha1 = [0u8; 20];
-        // reader.read_exact(&mut sha1)?;
-        let flags = reader.read_u16::<BigEndian>()?;
-        let name_len = reader.read_u16::<BigEndian>()?;
+        reader.read_exact(&mut sha1)?;
+
+        let mut buffer16 = [0u8; 2];
+        reader.read_exact(&mut buffer16)?;
+
+        let flags = u16::from_be_bytes(buffer16); 
+        reader.read_exact(&mut buffer16)?;
+
+        let name_len= u16::from_be_bytes(buffer16); 
         let mut name_bytes = vec![0u8; name_len as usize];
         reader.read_exact(&mut name_bytes)?;
         let name = String::from_utf8_lossy(&name_bytes).to_string();
@@ -75,7 +103,7 @@ impl GitIndexEntry {
             uid,
             gid,
             fsize,
-            // sha1,
+            sha1,
             flags,
             name,
         })
@@ -91,6 +119,7 @@ impl GitIndex{
     }
 
     //this would mean we have to serialize and deserialize on each update
+
     pub fn add_entry(&mut self, name: String, entry: GitIndexEntry) {
         self.entries.insert(name, entry);
     }
@@ -99,26 +128,49 @@ impl GitIndex{
         self.entries.remove(name)
     }
 
-    pub fn serialize_entries(&self, writer: &mut impl Write) -> io::Result<()> {
+    pub fn serialize(&self, writer: &mut impl Write) -> io::Result<()> {
         for (name, entry) in &self.entries {
             let name_len = name.len() as u16;
-            writer.write_u16::<BigEndian>(name_len)?;
+            writer.write_all(&name_len.to_be_bytes());
             writer.write_all(name.as_bytes())?;
             entry.serialize(writer)?;
         }
         Ok(())
     }
 
-    pub fn deserialize_entries(reader: &mut impl Read) -> io::Result<Self> {
+    pub fn deserialize(reader: &mut impl Read) -> io::Result<Self> {
         let mut entries = GitIndex::new();
-        while let Ok(name_len) = reader.read_u16::<BigEndian>() {
+        let mut name_len_bytes = [0u8; 2];
+        while let Ok(()) = reader.read_exact(&mut name_len_bytes) {
+
+            let name_len = u16::from_be_bytes(name_len_bytes);
             let mut name_bytes = vec![0u8; name_len as usize];
-            reader.read_exact(&mut name_bytes)?;
+            reader.read_exact(&mut name_bytes);
+
             let name = String::from_utf8_lossy(&name_bytes).to_string();
             let entry = GitIndexEntry::deserialize(reader)?;
             entries.add_entry(name, entry);
         }
         Ok(entries)
+    }
+
+    pub fn ls_files(&mut self) -> Result<String, Error>{
+        for (name, entry) in &self.entries{ 
+            let first_bytes = ((entry.mode >> 16) & 0xFFFF) as u16; //dont know if this works
+
+            let mode_str  = match first_bytes { 
+                04 => "tree",    
+                10 => "blob",    
+                12 => "blob",    
+                16 => "commit",    
+                _ => {
+                    eprintln!("Unknown mode types read in index");
+                    "_"
+                }
+            };
+            println!("{} {:?} {}",& mode_str, entry.sha1, &entry.name );
+        }
+        Ok(String::from("No entries"))
     }
 
 }
