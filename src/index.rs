@@ -23,19 +23,19 @@ pub struct GitIndex{
 
 impl GitIndexEntry {
     pub fn serialize(&self, writer: &mut impl Write) -> io::Result<()> {
-        writer.write_all(&self.ctime_s.to_be_bytes());
-        writer.write_all(&self.ctime_n.to_be_bytes());
-        writer.write_all(&self.mtime_s.to_be_bytes());
-        writer.write_all(&self.mtime_n.to_be_bytes());
-        writer.write_all(&self.dev.to_be_bytes());
-        writer.write_all(&self.ino.to_be_bytes());
-        writer.write_all(&self.mode.to_be_bytes());
-        writer.write_all(&self.uid.to_be_bytes());
-        writer.write_all(&self.gid.to_be_bytes());
-        writer.write_all(&self.fsize.to_be_bytes());
-        writer.write_all(&self.sha1);
-        writer.write_all(&self.flags.to_be_bytes());
-        writer.write_all(&( (self.name.len() as u16).to_be_bytes()));
+        writer.write_all(&self.ctime_s.to_be_bytes())?;
+        writer.write_all(&self.ctime_n.to_be_bytes())?;
+        writer.write_all(&self.mtime_s.to_be_bytes())?;
+        writer.write_all(&self.mtime_n.to_be_bytes())?;
+        writer.write_all(&self.dev.to_be_bytes())?;
+        writer.write_all(&self.ino.to_be_bytes())?;
+        writer.write_all(&self.mode.to_be_bytes())?;
+        writer.write_all(&self.uid.to_be_bytes())?;
+        writer.write_all(&self.gid.to_be_bytes())?;
+        writer.write_all(&self.fsize.to_be_bytes())?;
+        writer.write_all(&self.sha1)?;
+        writer.write_all(&self.flags.to_be_bytes())?;
+        writer.write_all(&( (self.name.len() as u16).to_be_bytes()))?;
         writer.write_all(self.name.as_bytes())?;
         Ok(())
     }
@@ -131,7 +131,7 @@ impl GitIndex{
     pub fn serialize(&self, writer: &mut impl Write) -> io::Result<()> {
         for (name, entry) in &self.entries {
             let name_len = name.len() as u16;
-            writer.write_all(&name_len.to_be_bytes());
+            writer.write_all(&name_len.to_be_bytes())?;
             writer.write_all(name.as_bytes())?;
             entry.serialize(writer)?;
         }
@@ -145,7 +145,7 @@ impl GitIndex{
 
             let name_len = u16::from_be_bytes(name_len_bytes);
             let mut name_bytes = vec![0u8; name_len as usize];
-            reader.read_exact(&mut name_bytes);
+            reader.read_exact(&mut name_bytes)?;
 
             let name = String::from_utf8_lossy(&name_bytes).to_string();
             let entry = GitIndexEntry::deserialize(reader)?;
